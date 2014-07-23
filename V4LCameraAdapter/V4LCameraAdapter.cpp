@@ -568,6 +568,8 @@ status_t V4LCameraAdapter::fillThisBuffer(void* frameBuf, CameraFrame::FrameType
 	    ret = ioctl(mCameraHandle, VIDIOC_QBUF, &hbuf_query);
 	    if (ret < 0) {
 	        CAMHAL_LOGEB("Init: VIDIOC_QBUF %d Failed, errno=%d\n",i, errno);
+		close(mCameraHandle);
+		mCameraHandle = -1;
 	        return -1;
 	    }
 	    nQueued++;
@@ -575,7 +577,6 @@ status_t V4LCameraAdapter::fillThisBuffer(void* frameBuf, CameraFrame::FrameType
 #ifdef AMLOGIC_USB_CAMERA_SUPPORT
     if(mIsDequeuedEIOError){
         CAMHAL_LOGEA("DQBUF EIO error has occurred!\n");
-        this->stopPreview();
         close(mCameraHandle);
         mCameraHandle = -1;
         return -1;
@@ -1456,11 +1457,9 @@ char * V4LCameraAdapter::GetFrame(int &index, unsigned int* canvas)
 #ifdef AMLOGIC_USB_CAMERA_SUPPORT
         if((EIO==errno) || (ENODEV==errno)){
             mIsDequeuedEIOError = true;
-            this->stopPreview();
             close(mCameraHandle);
             mCameraHandle = -1;
             CAMHAL_LOGEA("GetFrame: VIDIOC_DQBUF Failed--EIO\n");
-            mErrorNotifier->errorNotify(CAMERA_ERROR_SOFT);
         }
 #endif
         if(EAGAIN == errno){
@@ -1474,11 +1473,11 @@ char * V4LCameraAdapter::GetFrame(int &index, unsigned int* canvas)
             	force_reset_sensor();
             	mEagainCnt = 0;
             	mResetTH = 3000000; // for debug
-			}
-#endif
-		}else{
-			CAMHAL_LOGEB("GetFrame: VIDIOC_DQBUF Failed,errno=%d\n",errno);
 	    }
+#endif
+	}else{
+			CAMHAL_LOGEB("GetFrame: VIDIOC_DQBUF Failed,errno=%d\n",errno);
+    }
 		return NULL;
 		}
 	mResetTH = 3000000;
@@ -1664,6 +1663,13 @@ int V4LCameraAdapter::previewThread()
             usleep(delay);
 
         char *fp = this->GetFrame(index, &canvas_id);
+
+#ifdef AMLOGIC_USB_CAMERA_SUPPORT
+        if(mIsDequeuedEIOError){
+            CAMHAL_LOGEA("DQBUF EIO has occured! previewThread return\n");
+            return BAD_VALUE;
+        }
+#endif
 
         if((-1==index)||!fp){
             noFrame = true;
