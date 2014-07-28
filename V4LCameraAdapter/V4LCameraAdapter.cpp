@@ -56,6 +56,8 @@ extern "C"{
     #include "jutils.h"
 }
 
+#include "libyuv.h"
+
 //for private_handle_t TODO move out of private header
 #include <gralloc_priv.h>
 
@@ -1784,6 +1786,7 @@ int V4LCameraAdapter::previewThread()
 		gettimeofday(&mStartTime, NULL);
 #endif
         if(mSensorFormat == V4L2_PIX_FMT_MJPEG){ //enable mjpeg
+#ifdef AMLOGIC_PREVIOUS_MJPEG_DECODE
             if(jpeg_decode(&dest,src,width,height, ( CameraFrame::PIXEL_FMT_NV21 == mPixelFormat)?V4L2_PIX_FMT_NV21:V4L2_PIX_FMT_YVU420) != 0){  // output format is nv21
                 fillThisBuffer((uint8_t*) mPreviewBufs.keyAt(mPreviewIdxs.valueFor(index)), CameraFrame::PREVIEW_FRAME_SYNC);
                 CAMHAL_LOGEB("jpeg decode failed,src:%02x %02x %02x %02x",src[0], src[1], src[2], src[3]);
@@ -1800,6 +1803,67 @@ int V4LCameraAdapter::previewThread()
 #endif
                 return -1;
             }
+#else //AMLOGIC_PREVIOUS_MJPEG_DECODE
+
+		if (CameraFrame::PIXEL_FMT_YV12 == mPixelFormat) {
+			if(ConvertToI420(src, mVideoInfo->buf.bytesused, dest, width, dest + width * height + width * height / 4, (width + 1) / 2,
+						dest + width * height, (width + 1) / 2, 0, 0, width, height,
+						width, height, libyuv::kRotate0, libyuv::FOURCC_MJPG) != 0) {
+				fillThisBuffer((uint8_t*) mPreviewBufs.keyAt(mPreviewIdxs.valueFor(index)), CameraFrame::PREVIEW_FRAME_SYNC);
+				CAMHAL_LOGEB("jpeg decode failed,src:%02x %02x %02x %02x",src[0], src[1], src[2], src[3]);
+
+#ifdef AMLOGIC_USB_CAMERA_SUPPORT
+				mFailedCnt++;
+				gettimeofday(&mEndTime, NULL);
+			        int intreval = (mEndTime.tv_sec - mStartTime.tv_sec) * 1000000 + (mEndTime.tv_usec - mStartTime.tv_usec);
+			        if(intreval > (int)mResetTH){
+					CAMHAL_LOGIA("MJPEG Stream error ! Restart Preview");
+					force_reset_sensor();
+					mFailedCnt = 0;
+					mFirstBuff = true;
+				} 
+#endif
+				return -1;
+			}
+		} else if (CameraFrame::PIXEL_FMT_NV21 == mPixelFormat) {
+			uint8_t *vBuffer = new uint8_t[width * height / 4];
+			if (vBuffer == NULL)
+				CAMHAL_LOGIA("alloc temperary v buffer failed\n");
+			uint8_t *uBuffer = new uint8_t[width * height / 4];
+			if (uBuffer == NULL)
+				CAMHAL_LOGIA("alloc temperary u buffer failed\n");
+
+			if(ConvertToI420(src, mVideoInfo->buf.bytesused, dest, width, uBuffer, (width + 1) / 2,
+						vBuffer, (width + 1) / 2, 0, 0, width, height,
+						width, height, libyuv::kRotate0, libyuv::FOURCC_MJPG) != 0) {
+				fillThisBuffer((uint8_t*) mPreviewBufs.keyAt(mPreviewIdxs.valueFor(index)), CameraFrame::PREVIEW_FRAME_SYNC);
+				CAMHAL_LOGEB("jpeg decode failed,src:%02x %02x %02x %02x",src[0], src[1], src[2], src[3]);
+
+#ifdef AMLOGIC_USB_CAMERA_SUPPORT
+				mFailedCnt++;
+				gettimeofday(&mEndTime, NULL);
+			        int intreval = (mEndTime.tv_sec - mStartTime.tv_sec) * 1000000 + (mEndTime.tv_usec - mStartTime.tv_usec);
+			        if(intreval > (int)mResetTH){
+					CAMHAL_LOGIA("MJPEG Stream error ! Restart Preview");
+					force_reset_sensor();
+					mFailedCnt = 0;
+					mFirstBuff = true;
+				}
+#endif
+
+				return -1;
+			}
+
+			uint8_t *pUVBuffer = dest + width * height;
+			for (int i = 0; i < width * height / 4; i++) {
+				*pUVBuffer++ = *(vBuffer + i);
+				*pUVBuffer++ = *(uBuffer + i);
+			}
+
+			delete vBuffer;
+			delete uBuffer;
+		}
+#endif //AMLOGIC_PREVIOUS_MJPEG_DECODE
             mFailedCnt = 0; 
             frame.mLength = width*height*3/2;
         }else{

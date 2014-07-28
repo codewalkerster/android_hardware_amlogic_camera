@@ -74,7 +74,11 @@ LOCAL_C_INCLUDES += \
     system/core/include/ion \
     $(LOCAL_PATH)/inc/mjpeg/ \
     $(GRALLOC_DIR) \
-    system/core/include/utils
+    system/core/include/utils \
+    external/libyuv/files/include/ \
+
+LOCAL_STATIC_LIBRARIES := \
+                         libyuv_static \
 
 ifeq ($(BOARD_HAVE_HW_JPEGENC),true)
 LOCAL_C_INCLUDES += \
