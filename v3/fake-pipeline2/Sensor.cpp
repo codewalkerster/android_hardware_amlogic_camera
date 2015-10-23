@@ -1165,9 +1165,9 @@ int Sensor::captureNewImage() {
                 i, b.streamId, b.width, b.height, b.format, b.stride,
                 b.buffer, b.img);
         switch (b.format) {
-            case HAL_PIXEL_FORMAT_RAW_SENSOR:
-                captureRaw(b.img, gain, b.stride);
-                break;
+            //case HAL_PIXEL_FORMAT_RAW_SENSOR:
+            //    captureRaw(b.img, gain, b.stride);
+            //    break;
             case HAL_PIXEL_FORMAT_RGB_888:
                 captureRGB(b.img, gain, b.stride);
                 break;

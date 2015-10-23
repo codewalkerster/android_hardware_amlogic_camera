@@ -1708,8 +1708,8 @@ status_t EmulatedFakeCamera3::constructStaticInfo() {
         lensPosition[1] = 20;
         lensPosition[2] = 0;
     }
-    info.update(ANDROID_LENS_POSITION, lensPosition, sizeof(lensPosition)/
-            sizeof(float));
+    //info.update(ANDROID_LENS_POSITION, lensPosition, sizeof(lensPosition)/
+    //        sizeof(float));
     static const uint8_t lensCalibration = ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION_UNCALIBRATED;
     info.update(ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,&lensCalibration,1);
 
