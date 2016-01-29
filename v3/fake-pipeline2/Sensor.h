@@ -319,7 +319,7 @@ class Sensor: private Thread, public virtual RefBase {
     uintptr_t mKernelPhysAddr;
     uint32_t  mFrameNumber;
 	int  mRotateValue;
-
+    uint8_t *mTemp_buffer;
     // End of control parameters
 
     int mEV;

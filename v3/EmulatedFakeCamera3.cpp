@@ -2196,7 +2196,7 @@ status_t EmulatedFakeCamera3::doFakeAE(CameraMetadata &settings) {
             // OK for AUTO modes
             break;
         default:
-            ALOGE("%s: Emulator doesn't support AE mode %d",
+            ALOGVV("%s: Emulator doesn't support AE mode %d",
                     __FUNCTION__, aeMode);
             return BAD_VALUE;
     }

@@ -177,6 +177,7 @@ Sensor::Sensor():
         mExitSensorThread(false),
         mIoctlSupport(0),
         msupportrotate(0),
+        mTemp_buffer(NULL),
         mScene(kResolution[0], kResolution[1], kElectronsPerLuxSecond)
 {
 
@@ -281,6 +282,7 @@ uint32_t Sensor::getStreamUsage(int stream_type)
 status_t Sensor::setOutputFormat(int width, int height, int pixelformat, bool isjpeg)
 {
     int res;
+    int pre_width, pre_height;
 
     mFramecount = 0;
     mCurFps = 0;
@@ -302,6 +304,13 @@ status_t Sensor::setOutputFormat(int width, int height, int pixelformat, bool is
             ALOGE("set buffer failed\n");
             return res;
         }
+    }
+
+    if (NULL == mTemp_buffer) {
+        pre_width = vinfo->preview.format.fmt.pix.width;
+        pre_height = vinfo->preview.format.fmt.pix.height;
+        DBG_LOGB("setOutputFormat :: pre_width = %d, pre_height = %d \n" , pre_width , pre_height);
+        mTemp_buffer = new uint8_t[pre_width * pre_height * 3 / 2];
     }
 
     return OK;
@@ -447,6 +456,12 @@ status_t Sensor::shutDown() {
             free(vinfo);
             vinfo = NULL;
     }
+
+    if (mTemp_buffer) {
+        delete [] mTemp_buffer;
+        mTemp_buffer = NULL;
+    }
+
     ALOGD("%s: Exit", __FUNCTION__);
     return res;
 }
@@ -1190,7 +1205,6 @@ int Sensor::captureNewImage() {
                 if (pixelfmt == V4L2_PIX_FMT_YVU420) {
                     pixelfmt = HAL_PIXEL_FORMAT_YV12;
                 } else if (pixelfmt == V4L2_PIX_FMT_NV21) {
-                    DBG_LOGA("");
                     pixelfmt = HAL_PIXEL_FORMAT_YCrCb_420_SP;
                 } else if (pixelfmt == V4L2_PIX_FMT_YUYV) {
                     pixelfmt = HAL_PIXEL_FORMAT_YCbCr_422_I;
@@ -2098,19 +2112,41 @@ void Sensor::captureNV21(StreamBuffer b, uint32_t gain) {
         } else if (vinfo->preview.format.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV) {
             int width = vinfo->preview.format.fmt.pix.width;
             int height = vinfo->preview.format.fmt.pix.height;
-            YUYVToNV21(src, b.img, width, height);
-            mKernelBuffer = b.img;
+            memset(mTemp_buffer, 0 , width * height * 3/2);
+            YUYVToNV21(src, mTemp_buffer, width, height);
+            if ((width == b.width) && (height == b.height)) {
+                memcpy(b.img, mTemp_buffer, b.width * b.height * 3/2);
+                mKernelBuffer = b.img;
+            } else {
+                if ((b.height % 2) != 0) {
+                    DBG_LOGB("%d , b.height = %d", __LINE__, b.height);
+                    b.height = b.height - 1;
+                }
+                ReSizeNV21(vinfo, mTemp_buffer, b.img, b.width, b.height);
+                mKernelBuffer = mTemp_buffer;
+            }
         } else if (vinfo->preview.format.fmt.pix.pixelformat == V4L2_PIX_FMT_MJPEG) {
             int width = vinfo->preview.format.fmt.pix.width;
             int height = vinfo->preview.format.fmt.pix.height;
-            if (ConvertMjpegToNV21(src, vinfo->preview.buf.bytesused, b.img,
-                        width, b.img + width * height, (width + 1) / 2, width,
+            memset(mTemp_buffer, 0 , width * height * 3/2);
+            if (ConvertMjpegToNV21(src, vinfo->preview.buf.bytesused, mTemp_buffer,
+                        width, mTemp_buffer + width * height, (width + 1) / 2, width,
                         height, width, height, libyuv::FOURCC_MJPG) != 0) {
                 putback_frame(vinfo);
-                DBG_LOGA("Decode MJPEG frame failed\n");
+                ALOGE("%s , %d , Decode MJPEG frame failed \n", __FUNCTION__ , __LINE__);
                 continue;
             }
-            mKernelBuffer = b.img;
+            if ((width == b.width) && (height == b.height)) {
+                memcpy(b.img, mTemp_buffer, b.width * b.height * 3/2);
+                mKernelBuffer = b.img;
+            } else {
+                if ((b.height % 2) != 0) {
+                    DBG_LOGB("%d, b.height = %d", __LINE__, b.height);
+                    b.height = b.height - 1;
+                }
+                ReSizeNV21(vinfo, mTemp_buffer, b.img, b.width, b.height);
+                mKernelBuffer = mTemp_buffer;
+            }
         }
 
         break;
