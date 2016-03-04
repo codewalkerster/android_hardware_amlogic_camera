@@ -350,6 +350,8 @@ class Sensor: private Thread, public virtual RefBase {
     enum sensor_type_e mSensorType;
     unsigned int mIoctlSupport;
     unsigned int msupportrotate;
+    int mPre_width;
+    int mPre_height;
 
     /**
      * Inherited Thread virtual overrides, and members only used by the

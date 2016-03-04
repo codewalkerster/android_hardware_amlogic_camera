@@ -178,6 +178,8 @@ Sensor::Sensor():
         mIoctlSupport(0),
         msupportrotate(0),
         mTemp_buffer(NULL),
+        mPre_width(0),
+        mPre_height(0),
         mScene(kResolution[0], kResolution[1], kElectronsPerLuxSecond)
 {
 
@@ -282,7 +284,6 @@ uint32_t Sensor::getStreamUsage(int stream_type)
 status_t Sensor::setOutputFormat(int width, int height, int pixelformat, bool isjpeg)
 {
     int res;
-    int pre_width, pre_height;
 
     mFramecount = 0;
     mCurFps = 0;
@@ -307,10 +308,28 @@ status_t Sensor::setOutputFormat(int width, int height, int pixelformat, bool is
     }
 
     if (NULL == mTemp_buffer) {
-        pre_width = vinfo->preview.format.fmt.pix.width;
-        pre_height = vinfo->preview.format.fmt.pix.height;
-        DBG_LOGB("setOutputFormat :: pre_width = %d, pre_height = %d \n" , pre_width , pre_height);
-        mTemp_buffer = new uint8_t[pre_width * pre_height * 3 / 2];
+        mPre_width = vinfo->preview.format.fmt.pix.width;
+        mPre_height = vinfo->preview.format.fmt.pix.height;
+        DBG_LOGB("setOutputFormat :: pre_width = %d, pre_height = %d \n" , mPre_width , mPre_height);
+        mTemp_buffer = new uint8_t[mPre_width * mPre_height * 3 / 2];
+        if (mTemp_buffer == NULL) {
+            ALOGE("first time allocate mTemp_buffer failed !");
+            return -1;
+        }
+    }
+
+    if ((mPre_width != vinfo->preview.format.fmt.pix.width) && (mPre_height != vinfo->preview.format.fmt.pix.height)) {
+        if (mTemp_buffer) {
+            delete [] mTemp_buffer;
+            mTemp_buffer = NULL;
+        }
+        mPre_width = vinfo->preview.format.fmt.pix.width;
+        mPre_height = vinfo->preview.format.fmt.pix.height;
+        mTemp_buffer = new uint8_t[mPre_width * mPre_height * 3 / 2];
+        if (mTemp_buffer == NULL) {
+            ALOGE("allocate mTemp_buffer failed !");
+            return -1;
+        }
     }
 
     return OK;
