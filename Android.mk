@@ -95,7 +95,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libutils \
     libcutils \
     libcamera_client \
-    libexif \
+    libjhead \
     libjpeg \
     libgui \
     libion
