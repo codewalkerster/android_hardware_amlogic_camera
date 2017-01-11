@@ -117,7 +117,7 @@ LOCAL_SRC_FILES := \
 ifeq ($(TARGET_PRODUCT),vbox_x86)
 LOCAL_MODULE := camera.vbox_x86
 else
-LOCAL_MODULE:= camera.amlogic
+LOCAL_MODULE:= camera.$(TARGET_PRODUCT)
 endif
 
 include $(BUILD_SHARED_LIBRARY)
