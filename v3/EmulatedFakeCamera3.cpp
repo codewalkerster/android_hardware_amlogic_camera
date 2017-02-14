@@ -387,7 +387,7 @@ status_t EmulatedFakeCamera3::getCameraInfo(struct camera_info *info) {
     char property[PROPERTY_VALUE_MAX];
     char* tempApkName = gLoadXml.getApkPackageName(IPCThreadState::self()->getCallingPid());
     List_Or * temp=new List_Or();
-    info->facing = mFacingBack ? CAMERA_FACING_BACK : CAMERA_FACING_FRONT;
+    info->facing = CAMERA_FACING_BACK;/*mFacingBack ? CAMERA_FACING_BACK : CAMERA_FACING_FRONT;*/
     if (mSensorType == SENSOR_USB) {
         if (mFacingBack) {
             property_get("hw.camera.orientation.back", property, "0");
