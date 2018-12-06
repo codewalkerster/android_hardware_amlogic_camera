@@ -24,7 +24,7 @@ LOCAL_CPPFLAGS := -g
 LOCAL_SHARED_LIBRARIES:= \
     libcutils \
     liblog \
-    camera.amlogic \
+    camera.$(TARGET_PRODUCT) \
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/ \
 		    $(LOCAL_PATH)/../ \
