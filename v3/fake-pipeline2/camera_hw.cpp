@@ -23,9 +23,7 @@
 #define LOG_TAG "Camera_hw"
 
 #include <errno.h>
-#include <cutils/properties.h>
 #include "camera_hw.h"
-#include "ispaaalib.h"
 
 #ifdef __cplusplus
 //extern "C" {
@@ -65,16 +63,9 @@ int camera_open(struct VideoInfo *cam_dev)
 {
         char dev_name[128];
         int ret;
-        char property[PROPERTY_VALUE_MAX];
 
-        property_get("ro.vendor.platform.board_camera", property, "false");
-        if (strstr(property, "true")) {
-                cam_dev->fd = open("/dev/video50", O_RDWR | O_NONBLOCK);
-        } else {
-                sprintf(dev_name, "%s%d", "/dev/video", cam_dev->idx);
-                cam_dev->fd = open(dev_name, O_RDWR | O_NONBLOCK);
-        }
-
+        sprintf(dev_name, "%s%d", "/dev/video", cam_dev->idx);
+        cam_dev->fd = open(dev_name, O_RDWR | O_NONBLOCK);
         //cam_dev->fd = open("/dev/video0", O_RDWR | O_NONBLOCK);
         if (cam_dev->fd < 0){
                 DBG_LOGB("open %s failed, errno=%d\n", dev_name, errno);
@@ -94,10 +85,6 @@ int camera_open(struct VideoInfo *cam_dev)
         if (!(cam_dev->cap.capabilities & V4L2_CAP_STREAMING)) {
                 DBG_LOGB( "video%d does not support streaming i/o\n",
                                 cam_dev->idx);
-        }
-
-        if (strstr((const char *)cam_dev->cap.driver, "ARM-camera-isp")) {
-                isp_lib_enable();
         }
 
         return ret;
@@ -223,19 +210,6 @@ int stop_capturing(struct VideoInfo *vinfo)
                         DBG_LOGB("munmap failed errno=%d", errno);
                         res = -1;
                 }
-        }
-
-        if (strstr((const char *)vinfo->cap.driver, "ARM-camera-isp")) {
-            vinfo->preview.format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-            vinfo->preview.rb.memory = V4L2_MEMORY_MMAP;
-            vinfo->preview.rb.count = 0;
-
-            res = ioctl(vinfo->fd, VIDIOC_REQBUFS, &vinfo->preview.rb);
-            if (res < 0) {
-                DBG_LOGB("VIDIOC_REQBUFS failed: %s", strerror(errno));
-            }else{
-                DBG_LOGA("VIDIOC_REQBUFS delete buffer success\n");
-            }
         }
 
         vinfo->isStreaming = false;
@@ -385,7 +359,7 @@ int start_picture(struct VideoInfo *vinfo, int rotate)
         }
 
         //step 2 : request buffer
-        vinfo->picture.rb.count = 3;
+        vinfo->picture.rb.count = 1;
         vinfo->picture.rb.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         //TODO DMABUF & ION
         vinfo->picture.rb.memory = V4L2_MEMORY_MMAP;
@@ -487,18 +461,19 @@ void stop_picture(struct VideoInfo *vinfo)
         enum v4l2_buf_type type;
         struct  v4l2_buffer buf;
         int i;
-        int ret;
 
         if (!vinfo->isPicture)
                 return ;
 
         //QBUF
-        CLEAR(buf);
-        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        buf.memory = V4L2_MEMORY_MMAP;
-        buf.index = vinfo->picture.buf.index;
-        if (ioctl(vinfo->fd, VIDIOC_QBUF, &buf) < 0)
-            DBG_LOGB("VIDIOC_QBUF failed, errno=%d\n", errno);
+        for (i = 0; i < (int)vinfo->picture.rb.count; ++i) {
+            CLEAR(buf);
+            buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            buf.memory = V4L2_MEMORY_MMAP;
+            buf.index = i;
+            if (ioctl(vinfo->fd, VIDIOC_QBUF, &buf) < 0)
+                    DBG_LOGB("VIDIOC_QBUF failed, errno=%d\n", errno);
+        }
 
         //stream off and unmap buffer
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -509,19 +484,6 @@ void stop_picture(struct VideoInfo *vinfo)
         {
             if (munmap(vinfo->mem_pic[i], vinfo->picture.buf.length) < 0)
                 DBG_LOGB("munmap failed errno=%d", errno);
-        }
-
-        if (strstr((const char *)vinfo->cap.driver, "ARM-camera-isp")) {
-            vinfo->picture.format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-            vinfo->picture.rb.memory = V4L2_MEMORY_MMAP;
-            vinfo->picture.rb.count = 0;
-
-            ret = ioctl(vinfo->fd, VIDIOC_REQBUFS, &vinfo->picture.rb);
-            if (ret < 0) {
-                DBG_LOGB("VIDIOC_REQBUFS failed: %s", strerror(errno));
-            } else {
-                DBG_LOGA("VIDIOC_REQBUFS delete buffer success\n");
-            }
         }
 
         set_rotate_value(vinfo->fd,0);
@@ -540,12 +502,14 @@ void releasebuf_and_stop_picture(struct VideoInfo *vinfo)
                 return ;
 
         //QBUF
-        CLEAR(buf);
-        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        buf.memory = V4L2_MEMORY_MMAP;
-        buf.index = vinfo->picture.buf.index;
-        if (ioctl(vinfo->fd, VIDIOC_QBUF, &buf) < 0)
-            DBG_LOGB("VIDIOC_QBUF failed, errno=%d\n", errno);
+        for (i = 0; i < (int)vinfo->picture.rb.count; ++i) {
+            CLEAR(buf);
+            buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            buf.memory = V4L2_MEMORY_MMAP;
+            buf.index = i;
+            if (ioctl(vinfo->fd, VIDIOC_QBUF, &buf) < 0)
+                    DBG_LOGB("VIDIOC_QBUF failed, errno=%d\n", errno);
+        }
 
         //stream off and unmap buffer
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -581,14 +545,10 @@ void camera_close(struct VideoInfo *vinfo)
         return ;
     }
 
-    if (close(vinfo->fd) != 0)
-        DBG_LOGB("close failed, errno=%d\n", errno);
+        if (close(vinfo->fd) != 0)
+                DBG_LOGB("close failed, errno=%d\n", errno);
 
-    vinfo->fd = -1;
-
-    if (strstr((const char *)vinfo->cap.driver, "ARM-camera-isp")) {
-        isp_lib_disable();
-    }
+        vinfo->fd = -1;
 }
 #ifdef __cplusplus
 //}
