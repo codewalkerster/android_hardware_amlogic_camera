@@ -56,6 +56,13 @@ const int64_t USEC = 1000LL;
 const int64_t MSEC = USEC * 1000LL;
 //const int64_t SEC = MSEC * 1000LL;
 
+// Helper function to get property
+static inline int getProperty(const char* key) {
+    char property[PROPERTY_VALUE_MAX];
+    property_get(key, property, "-1");
+
+    return atoi(property);
+}
 
 const int32_t EmulatedFakeCamera3::kAvailableFormats[] = {
         //HAL_PIXEL_FORMAT_RAW_SENSOR,
@@ -950,7 +957,7 @@ const camera_metadata_t* EmulatedFakeCamera3::constructDefaultRequestSettings(
     settings.update(ANDROID_STATISTICS_HISTOGRAM_MODE, &histogramMode, 1);
 
     static const uint8_t sharpnessMapMode =
-        ANDROID_STATISTICS_SHARPNESS_MAP_MODE_OFF;
+        ANDROID_STATISTICS_SHARPNESS_MAP_MODE_ON;
     settings.update(ANDROID_STATISTICS_SHARPNESS_MAP_MODE, &sharpnessMapMode, 1);
 
     static const uint8_t hotPixelMapMode = ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE_OFF;
@@ -1257,6 +1264,53 @@ status_t EmulatedFakeCamera3::processCaptureRequest(
               mSensor->setExposure(exposureCmp);
          }
 
+         {
+             int32_t value = getProperty("hw.camera.brightness");
+             if (value >= 0)
+                 if (value != mSensor->getBrightness()) {
+                     mSensor->setBrightness(value);
+                 }
+         }
+
+         {
+             int32_t value = getProperty("hw.camera.contrast");
+             if (value >= 0)
+                 if (value != mSensor->getContrast()) {
+                     mSensor->setContrast(value);
+                 }
+         }
+
+         {
+             int32_t value = getProperty("hw.camera.saturation");
+             if (value >= 0)
+                 if (value != mSensor->getSaturation()) {
+                     mSensor->setSaturation(value);
+                 }
+         }
+
+         {
+             int32_t value = getProperty("hw.camera.hue");
+             if (value >= 0)
+                 if (value != mSensor->getHue()) {
+                     mSensor->setHue(value);
+                 }
+         }
+
+         {
+             int32_t value = getProperty("hw.camera.gamma");
+             if (value >= 0)
+                 if (value != mSensor->getGamma()) {
+                     mSensor->setGamma(value);
+                 }
+         }
+
+         {
+             int32_t value = getProperty("hw.camera.sharpness");
+             if (value >= 0)
+                 if (value != mSensor->getSharpness()) {
+                     mSensor->setSharpness(value);
+                 }
+         }
          int32_t cropRegion[4];
          int32_t cropWidth;
          int32_t outputWidth = request->output_buffers[0].stream->width;
@@ -1977,7 +2031,7 @@ status_t EmulatedFakeCamera3::constructStaticInfo() {
     info.update(ANDROID_STATISTICS_INFO_SHARPNESS_MAP_SIZE,
             sharpnessMapSize, sizeof(sharpnessMapSize)/sizeof(int32_t));
 
-    static const int32_t maxSharpnessMapValue = 1000;
+    static const int32_t maxSharpnessMapValue = s->getSharpnessMax();
     info.update(ANDROID_STATISTICS_INFO_MAX_SHARPNESS_MAP_VALUE,
             &maxSharpnessMapValue, 1);
     static const uint8_t hotPixelMapMode = ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE_OFF;

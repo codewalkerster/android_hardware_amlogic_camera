@@ -1877,6 +1877,268 @@ bool Sensor::get_sensor_status() {
     return mSensorWorkFlag;
 }
 
+inline int Sensor::getV4L2Feature(int fd, uint32_t id, int32_t *value) {
+    struct v4l2_control ctl;
+    struct v4l2_queryctrl qc;
+
+    int ret;
+
+    memset(&qc, 0, sizeof(struct v4l2_queryctrl));
+    qc.id = id;
+
+    ret = ioctl (fd, VIDIOC_QUERYCTRL, &qc);
+    if (ret == 0) {
+        ctl.id = id;
+
+        ret = ioctl(fd, VIDIOC_G_CTRL, &ctl);
+        *value = ctl.value;
+    }
+
+    return ret;
+}
+
+inline status_t Sensor::setV4L2Feature(int fd, uint32_t id, int32_t value) {
+    struct v4l2_queryctrl qc;
+    memset(&qc, 0, sizeof(qc));
+    qc.id = id;
+
+    if (ioctl (fd, VIDIOC_QUERYCTRL, &qc) < 0) {
+        if (errno == EINVAL)
+            return INVALID_OPERATION;
+        return NO_INIT;
+    } else if (qc.flags & V4L2_CTRL_FLAG_DISABLED) {
+        return INVALID_OPERATION;
+    } else {
+        struct v4l2_control ctl;
+        memset(&ctl, 0, sizeof(ctl));
+        ctl.id = id;
+
+        if (ioctl (fd, VIDIOC_G_CTRL, &ctl) < 0)
+            return BAD_VALUE;
+
+        DBG_LOGA("(min, max, default, current)\n");
+        DBG_LOGB("(%d, %d, %d, %d)\n",
+                qc.minimum, qc.maximum, qc.default_value, ctl.value);
+
+        ctl.value = 0;
+
+        if (value >= qc.minimum && value <= qc.maximum) {
+            ctl.value = value;
+            DBG_LOGB("Try set to - %d\n", ctl.value);
+        } else {
+            ctl.value = qc.default_value;
+            DBG_LOGB("Try set to default - %d\n", ctl.value);
+        }
+
+        if (ioctl (fd, VIDIOC_S_CTRL, &ctl) < 0)
+            return BAD_VALUE;
+
+        DBG_LOGB("Changed to %d\n", ctl.value);
+        return OK;
+    }
+}
+
+int Sensor::getBrightness() {
+    int brightness;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_BRIGHTNESS, &brightness);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get brightness %s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return brightness;
+}
+
+int Sensor::getContrast() {
+    int contrast;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_CONTRAST, &contrast);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get contrast%s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return contrast;
+}
+
+int Sensor::getSaturation() {
+    int saturation;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_SATURATION, &saturation);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get saturation%s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return saturation;
+}
+
+int Sensor::getHue() {
+    int hue;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_HUE, &hue);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get hue %s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return hue;
+}
+
+int Sensor::getGamma() {
+    int gamma;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_GAMMA, &gamma);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get gamma %s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return gamma;
+}
+
+int Sensor::getSharpnessMax() {
+    struct v4l2_queryctrl qc;
+    int sharpness = 1000;
+
+    memset(&qc, 0, sizeof(struct v4l2_queryctrl));
+    qc.id = V4L2_CID_SHARPNESS;
+
+    if (ioctl (vinfo->fd, VIDIOC_QUERYCTRL, &qc) == 0) {
+        sharpness = qc.maximum;
+    }
+
+    return sharpness;
+}
+
+int Sensor::getSharpness() {
+    int sharpness;
+    int ret = getV4L2Feature(vinfo->fd, V4L2_CID_SHARPNESS, &sharpness);
+
+    if (ret < 0) {
+        DBG_LOGB("failed to get sharpness %s(%d)\n",
+                strerror (errno), errno);
+    }
+
+    return sharpness;
+}
+
+status_t Sensor::setBrightness(int32_t brightness) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_BRIGHTNESS, brightness);
+    switch (status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_BRIGHTNESS is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Brightness is changed\n");
+            break;
+    }
+    return status;
+}
+
+status_t Sensor::setContrast(uint32_t contrast) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_CONTRAST, contrast);
+
+    switch(status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_CONTRAST is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Contrast is changed\n");
+            break;
+    }
+    return status;
+}
+
+status_t Sensor::setSaturation(int32_t saturation) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_SATURATION, saturation);
+    switch (status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_SATURATION is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Saturation is changed\n");
+            break;
+    }
+    return status;
+}
+
+status_t Sensor::setHue(int32_t hue) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_HUE, hue);
+    switch (status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_HUE is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Hue is changed\n");
+            break;
+    }
+    return status;
+}
+
+status_t Sensor::setGamma(int32_t gamma) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_GAMMA, gamma);
+    switch (status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_GAMMA is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Gamma is changed\n");
+            break;
+    }
+    return status;
+}
+
+status_t Sensor::setSharpness(int32_t sharpness) {
+    status_t status = setV4L2Feature(vinfo->fd, V4L2_CID_SHARPNESS, sharpness);
+    switch (status) {
+        case INVALID_OPERATION:
+            DBG_LOGA("V4L2_CID_SHARPNESS is unsupported\n");
+            break;
+        case BAD_VALUE:
+            DBG_LOGB("CONTROL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case NO_INIT:
+            DBG_LOGB("QUERYCTRL failed, %s(%d)\n", strerror (errno), errno);
+            break;
+        case OK:
+            DBG_LOGA("Sharpness is changed\n");
+            break;
+    }
+    return status;
+}
+
 void Sensor::captureRaw(uint8_t *img, uint32_t gain, uint32_t stride) {
     float totalGain = gain/100.0 * kBaseGainFactor;
     float noiseVarGain =  totalGain * totalGain;

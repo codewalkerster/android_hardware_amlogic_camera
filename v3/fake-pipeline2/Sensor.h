@@ -234,6 +234,22 @@ class Sensor: private Thread, public virtual RefBase {
     void  setFlushFlag(bool flushFlag);
     status_t force_reset_sensor();
     bool get_sensor_status();
+
+    int getBrightness();
+    int getContrast();
+    int getSaturation();
+    int getHue();
+    int getGamma();
+    int getSharpnessMax();
+    int getSharpness();
+
+    status_t setBrightness(int32_t brightness);
+    status_t setContrast(uint32_t contrast);
+    status_t setSaturation(int32_t saturation);
+    status_t setHue(int32_t hue);
+    status_t setGamma(int32_t gamma);
+    status_t setSharpness(int32_t sharpness);
+
     /*
      * Controls that cause reconfiguration delay
      */
@@ -388,6 +404,9 @@ class Sensor: private Thread, public virtual RefBase {
     void captureYUYV(uint8_t *img, uint32_t gain, uint32_t stride);
     void YUYVToNV21(uint8_t *src, uint8_t *dst, int width, int height);
     void YUYVToYV12(uint8_t *src, uint8_t *dst, int width, int height);
+
+    int getV4L2Feature(int fd, uint32_t id, int32_t *value);
+    status_t setV4L2Feature(int fd, uint32_t id, int32_t value);
 };
 
 }
